@@ -21,6 +21,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
 });
+builder.Services.AddAuthorization();
 
 //dependecies injections:
 builder.Services.AddEndpointsApiExplorer();
@@ -30,6 +31,10 @@ builder.Services.AddSingleton<IUserService, UserService>();
 var app = builder.Build();
 
 app.UseSwagger();
+
+app.UseAuthentication();
+
+app.UseAuthorization();
 
 app.MapGet("/", () => "Hello World!");
 
