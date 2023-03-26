@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using MinimalUwt.Models;
 using MinimalUwt.Services;
+using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -38,26 +40,45 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/", () => "Hello World!")
+    .ExcludeFromDescription();
 
-app.MapPost("/login", (UserLogin user, IUserService service) => Login(user, service));
+app.MapPost("/login",
+(UserLogin user, IUserService service) => Login(user, service))
+    .Accepts<UserLogin>("application/json")
+.Produces<string>();
 
-app.MapPost("/create", (Movie movie, IMovieService service) => Create(movie, service));
+app.MapPost("/create",
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Administrator")]
+(Movie movie, IMovieService service) => Create(movie, service))
+    .Accepts<Movie>("application/json")
+    .Produces<Movie>(statusCode: 200, contentType: "application/json");
 
-app.MapGet("/get", (int id, IMovieService service) => Get(id, service));
+app.MapGet("/get",
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Standard, Administrator")]
+(int id, IMovieService service) => Get(id, service))
+    .Produces<Movie>();
 
-app.MapGet("/list", (IMovieService service) => List(service));
+app.MapGet("/list",
+    (IMovieService service) => List(service))
+    .Produces<List<Movie>>(statusCode: 200, contentType: "application/json");
 
-app.MapPut("/update", (Movie newMovie, IMovieService service) => Update(newMovie, service));
+app.MapPut("/update",
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Administrator")]
+(Movie newMovie, IMovieService service) => Update(newMovie, service))
+    .Accepts<Movie>("application/json")
+    .Produces<Movie>(statusCode: 200, contentType: "application/json");
 
-app.MapDelete("/delete", (int id, IMovieService service) => Delete(id, service));
+app.MapDelete("/delete",
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Administrator")]
+(int id, IMovieService service) => Delete(id, service));
 
 IResult Login(UserLogin user, IUserService service)
 {
     if (!string.IsNullOrEmpty(user.Username) &&
        !string.IsNullOrEmpty(user.Password))
     {
-        var loggedInUser = service.Get(user);
+        var loggedInUser = service.Get(user); //this sumilate a user from a data base / this should be change to a proper login model
         if (loggedInUser is null) return Results.NotFound("User not found");
 
         var claims = new[] //information that will be encode for the token
@@ -81,7 +102,7 @@ IResult Login(UserLogin user, IUserService service)
                 SecurityAlgorithms.HmacSha256)
         );
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);//defining token string
 
         return Results.Ok(tokenString);
     }
