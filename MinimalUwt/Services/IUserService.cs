@@ -4,6 +4,6 @@ namespace MinimalUwt.Services
 {
     public interface IUserService
     {
-        public User GetUser(UserLogin userLogin);
+        public User Get(UserLogin userLogin);
     }
 }

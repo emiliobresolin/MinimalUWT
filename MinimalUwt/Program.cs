@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MinimalUwt.Models;
 using MinimalUwt.Services;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +40,8 @@ app.UseAuthorization();
 
 app.MapGet("/", () => "Hello World!");
 
+app.MapPost("/login", (UserLogin user, IUserService service) => Login(user, service));
+
 app.MapPost("/create", (Movie movie, IMovieService service) => Create(movie, service));
 
 app.MapGet("/get", (int id, IMovieService service) => Get(id, service));
@@ -47,6 +51,42 @@ app.MapGet("/list", (IMovieService service) => List(service));
 app.MapPut("/update", (Movie newMovie, IMovieService service) => Update(newMovie, service));
 
 app.MapDelete("/delete", (int id, IMovieService service) => Delete(id, service));
+
+IResult Login(UserLogin user, IUserService service)
+{
+    if (!string.IsNullOrEmpty(user.Username) &&
+       !string.IsNullOrEmpty(user.Password))
+    {
+        var loggedInUser = service.Get(user);
+        if (loggedInUser is null) return Results.NotFound("User not found");
+
+        var claims = new[] //information that will be encode for the token
+        {
+            new Claim(ClaimTypes.NameIdentifier, loggedInUser.Username),
+            new Claim(ClaimTypes.Email, loggedInUser.EmailAddress),
+            new Claim(ClaimTypes.GivenName, loggedInUser.GivenName),
+            new Claim(ClaimTypes.Surname, loggedInUser.Surname),
+            new Claim(ClaimTypes.Role, loggedInUser.Role)
+        };
+
+        var token = new JwtSecurityToken //this is about generate the token
+        (
+            issuer: builder.Configuration["Jwt:Issuer"],
+            audience: builder.Configuration["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddDays(60),
+            notBefore: DateTime.UtcNow,
+            signingCredentials: new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+                SecurityAlgorithms.HmacSha256)
+        );
+
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
+        return Results.Ok(tokenString);
+    }
+    return Results.BadRequest("Invalid user credentials");
+}
 
 IResult Create(Movie movie, IMovieService service)
 {
